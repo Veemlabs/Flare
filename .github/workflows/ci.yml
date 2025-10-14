@@ -1,0 +1,58 @@
+name: Flare CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust:
+    name: Build & Test (Flare)
+    runs-on: ubuntu-latest
+
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTC_WRAPPER: sccache
+      RUSTFLAGS: "-D warnings"
+      SCCACHE_DIR: /home/runner/.cache/sccache
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo and SCCACHE
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            /home/runner/.cache/sccache
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install sccache
+        run: cargo install sccache || true
+
+      - name: Clippy (pedantic)
+        run: |
+          cargo clippy --all-targets -- -D warnings -D clippy::pedantic
+
+      - name: Rustfmt check
+        run: cargo fmt --all -- --check
+
+      - name: Run tests
+        run: cargo test --verbose
+
+      - name: Build release
+        run: cargo build --release --verbose
+
+      - name: Doc check (private + public)
+        run: cargo doc --no-deps --document-private-items
+
